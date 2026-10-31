@@ -1,0 +1,2 @@
+export const formatDate=(value?:string|null)=>value?new Date(value).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'—';
+export const parseEmails=(text:string)=>{const matches=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[];const tokens=text.split(/[;,\n\t]/).map(v=>v.trim()).filter(Boolean);const normalized=matches.map(v=>v.toLowerCase());const unique=[...new Set(normalized)];const invalid=tokens.filter(v=>!/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(v)).length;return {valid:unique.length,duplicates:normalized.length-unique.length,invalid}};

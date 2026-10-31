@@ -1,0 +1,1 @@
+export interface EmailRecord { id:string; recipient:string; sender:string; subject:string; body:string; scheduled_at:string; sent_at?:string|null; status:'scheduled'|'sent'|'failed'|'paused'; error?:string|null; created_at:string }

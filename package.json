@@ -1,0 +1,28 @@
+{
+  "name": "typesrcipt",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "infra": "docker-compose up -d",
+    "migrate": "npm --prefix backend run db:migrate",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:worker": "npm --prefix backend run worker",
+    "dev:web": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@react-oauth/google": "^0.13.5",
+    "axios": "^1.21.0",
+    "lucide-react": "^1.66.0",
+    "react-router-dom": "^7.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

@@ -1,0 +1,2 @@
+import { MailPlus } from 'lucide-react';
+export default function EmptyState({title='Nothing here yet',description,action,onAction}:{title?:string;description:string;action?:string;onAction?:()=>void}){return <div className="empty-state"><div className="empty-icon"><MailPlus/></div><h3>{title}</h3><p>{description}</p>{action&&<button className="primary-button" onClick={onAction}>{action}</button>}</div>}

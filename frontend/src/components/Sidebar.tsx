@@ -1,0 +1,5 @@
+import { CalendarClock, CircleAlert, LayoutDashboard, PlugZap, Send, X, Zap } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import type { User } from '../types/user';
+const items=[['/dashboard',LayoutDashboard,'Overview'],['/scheduled',CalendarClock,'Scheduled'],['/sent',Send,'Sent emails'],['/failed',CircleAlert,'Failed emails'],['/integrations',PlugZap,'Integrations']] as const;
+export default function Sidebar({user,onClose,open}:{user:User;onClose:()=>void;open:boolean}){return <aside className={`sidebar ${open?'open':''}`}><button className="close-sidebar" onClick={onClose}><X/></button><div className="brand"><div className="brand-logo">R</div><b>ReachInbox</b></div><span className="nav-label">WORKSPACE</span><nav>{items.map(([to,Icon,label])=> <NavLink key={to} to={to} end={to==='/dashboard' }><Icon/><span>{label}</span></NavLink>)}</nav><div className="sidebar-bottom"><div className="queue-note"><Zap/><div><b>Scheduler active</b><small>Redis + BullMQ ready</small></div></div><div className="side-user"><img src={user.avatar||undefined}/><div><b>{user.name}</b><small>{user.email}</small></div></div></div></aside>}
