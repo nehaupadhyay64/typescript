@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import multer from 'multer';
@@ -33,22 +34,60 @@ router.get('/auth/demo', async (req, res) => {
     const user = result.rows[0];
     res.json({ token: sign(user), demo: true, user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar } });
 });
+const oauthErrorRedirect = (res, message) => {
+    const url = new URL('/login', config.frontendUrl);
+    url.searchParams.set('oauth_error', message);
+    res.redirect(url.toString());
+};
 router.get('/auth/google', (_req, res) => {
-    if (!config.googleClientId)
-        return res.status(503).json({ error: 'Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to backend/.env.' });
-    const params = new URLSearchParams({ client_id: config.googleClientId, redirect_uri: config.googleRedirectUri, response_type: 'code', scope: 'openid email profile', access_type: 'online' });
+    const missing = [
+        !config.googleClientId && 'GOOGLE_CLIENT_ID',
+        !config.googleClientSecret && 'GOOGLE_CLIENT_SECRET',
+        !config.googleRedirectUri && 'GOOGLE_REDIRECT_URI',
+    ].filter(Boolean);
+    if (missing.length) {
+        return res.status(503).json({ error: `Google OAuth is not configured. Missing: ${missing.join(', ')}. Set these values in backend/.env and restart the backend.` });
+    }
+    const state = jwt.sign({ nonce: crypto.randomBytes(24).toString('hex'), purpose: 'google-oauth' }, config.jwtSecret, { expiresIn: '10m' });
+    const params = new URLSearchParams({
+        client_id: config.googleClientId,
+        redirect_uri: config.googleRedirectUri,
+        response_type: 'code',
+        scope: 'openid email profile',
+        access_type: 'online',
+        prompt: 'select_account consent',
+        state,
+    });
     res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 router.get('/auth/google/callback', async (req, res) => {
+    if (req.query.error)
+        return oauthErrorRedirect(res, String(req.query.error_description || req.query.error));
     try {
-        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({ code: String(req.query.code || ''), client_id: config.googleClientId, client_secret: config.googleClientSecret, redirect_uri: config.googleRedirectUri, grant_type: 'authorization_code' }));
+        if (!config.googleClientId || !config.googleClientSecret || !config.googleRedirectUri) {
+            return oauthErrorRedirect(res, 'Google OAuth credentials are missing on the server.');
+        }
+        const state = jwt.verify(String(req.query.state || ''), config.jwtSecret);
+        if (state.purpose !== 'google-oauth')
+            throw new Error('Invalid OAuth state');
+        if (!req.query.code)
+            throw new Error('Google did not return an authorization code');
+        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
+            code: String(req.query.code), client_id: config.googleClientId, client_secret: config.googleClientSecret,
+            redirect_uri: config.googleRedirectUri, grant_type: 'authorization_code',
+        }));
         const profile = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + tokenResponse.data.access_token } });
         const data = profile.data;
-        const result = await pool.query(`INSERT INTO users(email,name,avatar,google_sub) VALUES($1,$2,$3,$4) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,avatar=EXCLUDED.avatar RETURNING *`, [data.email, data.name, data.picture, data.sub]);
-        res.redirect(`${config.frontendUrl}/auth/callback?token=${sign(result.rows[0])}`);
+        if (!data.sub || !data.email)
+            throw new Error('Google profile did not include an email address');
+        if (data.email_verified === false)
+            throw new Error('Google account email is not verified');
+        const result = await pool.query(`INSERT INTO users(email,name,avatar,google_sub) VALUES($1,$2,$3,$4) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,avatar=EXCLUDED.avatar,google_sub=EXCLUDED.google_sub RETURNING *`, [data.email, data.name || data.email, data.picture || null, data.sub]);
+        res.redirect(`${config.frontendUrl}/auth/callback?token=${encodeURIComponent(sign(result.rows[0]))}`);
     }
     catch (error) {
-        res.status(502).json({ error: 'Google OAuth failed', detail: error.response?.data || error.message });
+        const detail = error.response?.data?.error_description || error.response?.data?.error || error.message || 'Authentication failed';
+        oauthErrorRedirect(res, String(detail));
     }
 });
 router.get('/me', auth, async (req, res) => { const r = await pool.query('SELECT id,email,name,avatar FROM users WHERE id=$1', [req.user.id]); res.json(r.rows[0]); });
